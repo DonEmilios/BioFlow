@@ -73,9 +73,6 @@ export default function SidebarLibrary() {
                     isExpanded && "rotate-90"
                   )}
                 />
-                <span style={{ color: config.color }} className="w-1.5 h-1.5 rounded-full inline-block" 
-                  // Use inline bg
-                />
                 <div className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: config.color }} />
                 {config.label}
                 <span className="ml-auto text-muted-foreground/60">{catNodes.length}</span>

@@ -1,12 +1,13 @@
-import { Save, FolderOpen, Trash2, Play, PanelLeftClose, PanelLeft } from "lucide-react";
+import { Save, FolderOpen, Trash2, Play, PanelLeftClose, PanelLeft, FlaskConical } from "lucide-react";
 import { usePipelineStore } from "@/store/pipelineStore";
 import { useUIStore } from "@/store/uiStore";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { toast } from "sonner";
+import { demoPipelineNodes, demoPipelineEdges, DEMO_PIPELINE_NAME } from "@/lib/demoPipeline";
 
 export default function TopBar() {
-  const { pipelineName, setPipelineName, savePipeline, loadPipeline, clearPipeline, nodes } =
+  const { pipelineName, setPipelineName, savePipeline, loadPipeline, clearPipeline, loadDemo, nodes } =
     usePipelineStore();
   const { sidebarOpen, toggleSidebar } = useUIStore();
 

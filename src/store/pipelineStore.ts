@@ -38,6 +38,7 @@ interface PipelineState {
   savePipeline: () => void;
   loadPipeline: () => void;
   clearPipeline: () => void;
+  loadDemo: (nodes: Node<PipelineNodeData>[], edges: Edge[], name: string) => void;
 }
 
 export const usePipelineStore = create<PipelineState>((set, get) => ({
@@ -100,4 +101,7 @@ export const usePipelineStore = create<PipelineState>((set, get) => ({
 
   clearPipeline: () =>
     set({ nodes: [], edges: [], selectedNodeId: null, pipelineName: "Untitled Pipeline" }),
+
+  loadDemo: (nodes, edges, name) =>
+    set({ nodes, edges, selectedNodeId: null, pipelineName: name }),
 }));

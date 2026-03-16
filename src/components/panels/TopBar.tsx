@@ -1,12 +1,13 @@
-import { Save, FolderOpen, Trash2, Play, PanelLeftClose, PanelLeft } from "lucide-react";
+import { Save, FolderOpen, Trash2, Play, PanelLeftClose, PanelLeft, FlaskConical } from "lucide-react";
 import { usePipelineStore } from "@/store/pipelineStore";
 import { useUIStore } from "@/store/uiStore";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { toast } from "sonner";
+import { demoPipelineNodes, demoPipelineEdges, DEMO_PIPELINE_NAME } from "@/lib/demoPipeline";
 
 export default function TopBar() {
-  const { pipelineName, setPipelineName, savePipeline, loadPipeline, clearPipeline, nodes } =
+  const { pipelineName, setPipelineName, savePipeline, loadPipeline, clearPipeline, loadDemo, nodes } =
     usePipelineStore();
   const { sidebarOpen, toggleSidebar } = useUIStore();
 
@@ -65,6 +66,18 @@ export default function TopBar() {
         >
           <FolderOpen size={12} strokeWidth={1.5} />
           Load
+        </Button>
+        <Button
+          variant="ghost"
+          size="sm"
+          className="h-7 text-xs gap-1.5 text-muted-foreground"
+          onClick={() => {
+            loadDemo(demoPipelineNodes, demoPipelineEdges, DEMO_PIPELINE_NAME);
+            toast.success("Demo pipeline loaded — RNA-seq WT vs Knockout");
+          }}
+        >
+          <FlaskConical size={12} strokeWidth={1.5} />
+          Demo
         </Button>
         <Button
           variant="ghost"

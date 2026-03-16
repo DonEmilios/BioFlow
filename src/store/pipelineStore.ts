@@ -100,4 +100,7 @@ export const usePipelineStore = create<PipelineState>((set, get) => ({
 
   clearPipeline: () =>
     set({ nodes: [], edges: [], selectedNodeId: null, pipelineName: "Untitled Pipeline" }),
+
+  loadDemo: (nodes, edges, name) =>
+    set({ nodes, edges, selectedNodeId: null, pipelineName: name }),
 }));

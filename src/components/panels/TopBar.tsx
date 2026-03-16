@@ -72,6 +72,18 @@ export default function TopBar() {
           size="sm"
           className="h-7 text-xs gap-1.5 text-muted-foreground"
           onClick={() => {
+            loadDemo(demoPipelineNodes, demoPipelineEdges, DEMO_PIPELINE_NAME);
+            toast.success("Demo pipeline loaded — RNA-seq WT vs Knockout");
+          }}
+        >
+          <FlaskConical size={12} strokeWidth={1.5} />
+          Demo
+        </Button>
+        <Button
+          variant="ghost"
+          size="sm"
+          className="h-7 text-xs gap-1.5 text-muted-foreground"
+          onClick={() => {
             clearPipeline();
             toast.info("Pipeline cleared");
           }}

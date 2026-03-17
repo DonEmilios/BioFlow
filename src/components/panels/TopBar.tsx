@@ -47,9 +47,13 @@ export default function TopBar() {
           variant="ghost"
           size="sm"
           className="h-7 text-xs gap-1.5 text-muted-foreground"
-          onClick={() => {
-            savePipeline();
-            toast.success("Pipeline saved");
+          onClick={async () => {
+            try {
+              await savePipeline();
+              toast.success("Pipeline saved to cloud");
+            } catch (e) {
+              toast.error("Failed to save pipeline");
+            }
           }}
         >
           <Save size={12} strokeWidth={1.5} />

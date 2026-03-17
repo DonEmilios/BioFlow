@@ -7,7 +7,7 @@ import { toast } from "sonner";
 import { demoPipelineNodes, demoPipelineEdges, DEMO_PIPELINE_NAME } from "@/lib/demoPipeline";
 
 export default function TopBar() {
-  const { pipelineName, setPipelineName, savePipeline, loadPipeline, clearPipeline, loadDemo, nodes } =
+  const { pipelineName, setPipelineName, savePipeline, loadPipeline, clearPipeline, loadDemo, nodes, isRunning, runPipeline } =
     usePipelineStore();
   const { sidebarOpen, toggleSidebar } = useUIStore();
 

@@ -9,6 +9,7 @@ import {
   NodeChange,
   EdgeChange,
 } from "reactflow";
+import { savePipelineToDb, loadPipelineFromDb, runPipeline } from "@/lib/pipelineApi";
 
 export interface PipelineNodeData {
   tool: string;
@@ -25,6 +26,9 @@ interface PipelineState {
   edges: Edge[];
   selectedNodeId: string | null;
   pipelineName: string;
+  pipelineDbId: string | null;
+  isRunning: boolean;
+  runResults: Record<string, any> | null;
 
   onNodesChange: (changes: NodeChange[]) => void;
   onEdgesChange: (changes: EdgeChange[]) => void;
@@ -35,10 +39,12 @@ interface PipelineState {
   updateNodeParams: (id: string, params: Record<string, any>) => void;
   updateNodeStatus: (id: string, status: PipelineNodeData["status"]) => void;
   setPipelineName: (name: string) => void;
-  savePipeline: () => void;
-  loadPipeline: () => void;
+  savePipeline: () => Promise<void>;
+  loadPipeline: () => Promise<void>;
   clearPipeline: () => void;
   loadDemo: (nodes: Node<PipelineNodeData>[], edges: Edge[], name: string) => void;
+  runPipeline: () => Promise<void>;
+  clearResults: () => void;
 }
 
 export const usePipelineStore = create<PipelineState>((set, get) => ({
@@ -46,6 +52,9 @@ export const usePipelineStore = create<PipelineState>((set, get) => ({
   edges: [],
   selectedNodeId: null,
   pipelineName: "Untitled Pipeline",
+  pipelineDbId: null,
+  isRunning: false,
+  runResults: null,
 
   onNodesChange: (changes) =>
     set({ nodes: applyNodeChanges(changes, get().nodes) }),
@@ -83,25 +92,70 @@ export const usePipelineStore = create<PipelineState>((set, get) => ({
 
   setPipelineName: (name) => set({ pipelineName: name }),
 
-  savePipeline: () => {
-    const { nodes, edges, pipelineName } = get();
-    localStorage.setItem(
-      "bioflow_pipeline",
-      JSON.stringify({ nodes, edges, pipelineName })
-    );
+  savePipeline: async () => {
+    const { nodes, edges, pipelineName, pipelineDbId } = get();
+    const saved = await savePipelineToDb(pipelineName, nodes, edges, pipelineDbId || undefined);
+    set({ pipelineDbId: saved.id });
   },
 
-  loadPipeline: () => {
-    const saved = localStorage.getItem("bioflow_pipeline");
-    if (saved) {
-      const { nodes, edges, pipelineName } = JSON.parse(saved);
-      set({ nodes, edges, pipelineName });
+  loadPipeline: async () => {
+    const data = await loadPipelineFromDb();
+    if (data) {
+      set({
+        nodes: data.nodes as unknown as Node<PipelineNodeData>[],
+        edges: data.edges as unknown as Edge[],
+        pipelineName: data.name,
+        pipelineDbId: data.id,
+      });
     }
   },
 
   clearPipeline: () =>
-    set({ nodes: [], edges: [], selectedNodeId: null, pipelineName: "Untitled Pipeline" }),
+    set({ nodes: [], edges: [], selectedNodeId: null, pipelineName: "Untitled Pipeline", pipelineDbId: null, runResults: null }),
 
   loadDemo: (nodes, edges, name) =>
-    set({ nodes, edges, selectedNodeId: null, pipelineName: name }),
+    set({ nodes, edges, selectedNodeId: null, pipelineName: name, pipelineDbId: null, runResults: null }),
+
+  runPipeline: async () => {
+    const { nodes, edges, pipelineDbId } = get();
+    if (nodes.length === 0) return;
+
+    set({ isRunning: true, runResults: null });
+
+    // Set all nodes to queued
+    set({
+      nodes: get().nodes.map((n) => ({
+        ...n,
+        data: { ...n.data, status: "queued" as const },
+      })),
+    });
+
+    // Animate nodes one by one
+    const nodeIds = nodes.map((n) => n.id);
+    for (let i = 0; i < nodeIds.length; i++) {
+      await new Promise((r) => setTimeout(r, 400));
+      set({
+        nodes: get().nodes.map((n) =>
+          n.id === nodeIds[i] ? { ...n, data: { ...n.data, status: "running" as const } } : n
+        ),
+      });
+      await new Promise((r) => setTimeout(r, 600 + Math.random() * 400));
+      set({
+        nodes: get().nodes.map((n) =>
+          n.id === nodeIds[i] ? { ...n, data: { ...n.data, status: "complete" as const } } : n
+        ),
+      });
+    }
+
+    // Call edge function for real results
+    try {
+      const result = await runPipeline(pipelineDbId, nodes, edges);
+      set({ runResults: result.results, isRunning: false });
+    } catch (err) {
+      console.error("Run pipeline failed:", err);
+      set({ isRunning: false });
+    }
+  },
+
+  clearResults: () => set({ runResults: null }),
 }));

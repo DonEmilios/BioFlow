@@ -7,7 +7,7 @@ import { toast } from "sonner";
 import { demoPipelineNodes, demoPipelineEdges, DEMO_PIPELINE_NAME } from "@/lib/demoPipeline";
 
 export default function TopBar() {
-  const { pipelineName, setPipelineName, savePipeline, loadPipeline, clearPipeline, loadDemo, nodes } =
+  const { pipelineName, setPipelineName, savePipeline, loadPipeline, clearPipeline, loadDemo, nodes, isRunning, runPipeline } =
     usePipelineStore();
   const { sidebarOpen, toggleSidebar } = useUIStore();
 
@@ -47,9 +47,13 @@ export default function TopBar() {
           variant="ghost"
           size="sm"
           className="h-7 text-xs gap-1.5 text-muted-foreground"
-          onClick={() => {
-            savePipeline();
-            toast.success("Pipeline saved");
+          onClick={async () => {
+            try {
+              await savePipeline();
+              toast.success("Pipeline saved to cloud");
+            } catch (e) {
+              toast.error("Failed to save pipeline");
+            }
           }}
         >
           <Save size={12} strokeWidth={1.5} />
@@ -59,9 +63,13 @@ export default function TopBar() {
           variant="ghost"
           size="sm"
           className="h-7 text-xs gap-1.5 text-muted-foreground"
-          onClick={() => {
-            loadPipeline();
-            toast.success("Pipeline loaded");
+          onClick={async () => {
+            try {
+              await loadPipeline();
+              toast.success("Pipeline loaded from cloud");
+            } catch (e) {
+              toast.error("No saved pipeline found");
+            }
           }}
         >
           <FolderOpen size={12} strokeWidth={1.5} />
@@ -97,10 +105,19 @@ export default function TopBar() {
         <Button
           size="sm"
           className="h-7 text-xs gap-1.5"
-          disabled={nodes.length === 0}
+          disabled={nodes.length === 0 || isRunning}
+          onClick={async () => {
+            toast.info("Running pipeline…");
+            try {
+              await runPipeline();
+              toast.success("Pipeline complete — results ready");
+            } catch (e) {
+              toast.error("Pipeline run failed");
+            }
+          }}
         >
           <Play size={12} strokeWidth={1.5} />
-          Run Pipeline
+          {isRunning ? "Running…" : "Run Pipeline"}
         </Button>
       </div>
     </div>

@@ -4,6 +4,7 @@ import SidebarLibrary from "@/components/panels/SidebarLibrary";
 import ConfigPanel from "@/components/panels/ConfigPanel";
 import TopBar from "@/components/panels/TopBar";
 import RunBar from "@/components/panels/RunBar";
+import ResultsPanel from "@/components/panels/ResultsPanel";
 import { useUIStore } from "@/store/uiStore";
 
 const Index = () => {
@@ -36,6 +37,9 @@ const Index = () => {
 
         {/* Config Panel */}
         <ConfigPanel />
+
+        {/* Results Panel */}
+        <ResultsPanel />
       </div>
     </div>
   );

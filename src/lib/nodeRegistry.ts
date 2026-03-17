@@ -48,6 +48,7 @@ export const nodeRegistry: NodeRegistryEntry[] = [
     input_types: [],
     output_types: ["fastq", "fasta", "vcf", "csv"],
     params: [
+      { id: "file_url", label: "File URL", type: "string", default: "", required: true, help_text: "HTTPS URL of the file to ingest." },
       { id: "file_format", label: "File format", type: "select", default: "fastq", options: [{ value: "fastq", label: "FASTQ" }, { value: "fasta", label: "FASTA" }, { value: "vcf", label: "VCF" }, { value: "csv", label: "CSV" }], required: true, help_text: "Format of the uploaded file." },
       { id: "paired_end", label: "Paired-end reads", type: "boolean", default: true, required: false, help_text: "Enable for paired-end sequencing data." },
     ],

@@ -67,6 +67,20 @@ export const nodeRegistry: NodeRegistryEntry[] = [
   },
   // Process nodes
   {
+    id: "filter_data",
+    label: "Filter Data",
+    category: "process",
+    description: "Filter structured JSON tables based on a specified column and mathematical condition.",
+    icon: "Filter",
+    input_types: ["json", "tsv"],
+    output_types: ["json"],
+    params: [
+      { id: "column", label: "Column Name", type: "string", default: "padj", required: true, help_text: "Which data column to filter on." },
+      { id: "operator", label: "Operator", type: "select", default: "<", options: [{ value: "<", label: "Less Than (<)" }, { value: ">", label: "Greater Than (>)" }, { value: "==", label: "Equals (==)" }], required: true, help_text: "Logical comparison operator." },
+      { id: "value", label: "Threshold Value", type: "number", default: 0.05, required: true, help_text: "Numeric value to compare against." },
+    ],
+  },
+  {
     id: "fastqc",
     label: "FastQC",
     category: "process",
@@ -201,6 +215,19 @@ export const nodeRegistry: NodeRegistryEntry[] = [
     ],
   },
   // Output nodes
+  {
+    id: "webhook_export",
+    label: "Webhook Alert",
+    category: "output",
+    description: "Send pipeline results to a Slack, Discord, or custom webhook URL.",
+    icon: "BellRing",
+    input_types: ["json", "text", "csv"],
+    output_types: [],
+    params: [
+      { id: "url", label: "Webhook URL", type: "string", default: "", required: true, help_text: "The destination URL for the HTTP POST." },
+      { id: "message", label: "Custom Message", type: "string", default: "Pipeline Execution Complete", required: false, help_text: "Text to accompany the payload." },
+    ],
+  },
   {
     id: "csv_export",
     label: "CSV Export",

@@ -63,9 +63,13 @@ export default function TopBar() {
           variant="ghost"
           size="sm"
           className="h-7 text-xs gap-1.5 text-muted-foreground"
-          onClick={() => {
-            loadPipeline();
-            toast.success("Pipeline loaded");
+          onClick={async () => {
+            try {
+              await loadPipeline();
+              toast.success("Pipeline loaded from cloud");
+            } catch (e) {
+              toast.error("No saved pipeline found");
+            }
           }}
         >
           <FolderOpen size={12} strokeWidth={1.5} />

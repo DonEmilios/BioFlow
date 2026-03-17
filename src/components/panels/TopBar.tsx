@@ -105,10 +105,19 @@ export default function TopBar() {
         <Button
           size="sm"
           className="h-7 text-xs gap-1.5"
-          disabled={nodes.length === 0}
+          disabled={nodes.length === 0 || isRunning}
+          onClick={async () => {
+            toast.info("Running pipeline…");
+            try {
+              await runPipeline();
+              toast.success("Pipeline complete — results ready");
+            } catch (e) {
+              toast.error("Pipeline run failed");
+            }
+          }}
         >
           <Play size={12} strokeWidth={1.5} />
-          Run Pipeline
+          {isRunning ? "Running…" : "Run Pipeline"}
         </Button>
       </div>
     </div>

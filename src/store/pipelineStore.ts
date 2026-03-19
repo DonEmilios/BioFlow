@@ -130,19 +130,28 @@ export const usePipelineStore = create<PipelineState>((set, get) => ({
       })),
     });
 
-    // Animate nodes one by one
+    // Animate nodes one by one, animate edges leading to current node
     const nodeIds = nodes.map((n) => n.id);
     for (let i = 0; i < nodeIds.length; i++) {
+      const currentId = nodeIds[i];
       await new Promise((r) => setTimeout(r, 400));
+      // Set node to running + animate incoming edges
       set({
         nodes: get().nodes.map((n) =>
-          n.id === nodeIds[i] ? { ...n, data: { ...n.data, status: "running" as const } } : n
+          n.id === currentId ? { ...n, data: { ...n.data, status: "running" as const } } : n
+        ),
+        edges: get().edges.map((e) =>
+          e.target === currentId ? { ...e, animated: true } : e
         ),
       });
       await new Promise((r) => setTimeout(r, 600 + Math.random() * 400));
+      // Set node to complete + stop animating its incoming edges
       set({
         nodes: get().nodes.map((n) =>
-          n.id === nodeIds[i] ? { ...n, data: { ...n.data, status: "complete" as const } } : n
+          n.id === currentId ? { ...n, data: { ...n.data, status: "complete" as const } } : n
+        ),
+        edges: get().edges.map((e) =>
+          e.target === currentId ? { ...e, animated: false } : e
         ),
       });
     }

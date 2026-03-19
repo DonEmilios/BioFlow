@@ -1,6 +1,7 @@
 import { motion, AnimatePresence } from "framer-motion";
 import * as LucideIcons from "lucide-react";
-import { X, Sparkles, Trash2 } from "lucide-react";
+import { X, Sparkles, Trash2, UploadCloud, File, Loader2 } from "lucide-react";
+import { useState, useRef } from "react";
 import { usePipelineStore } from "@/store/pipelineStore";
 import { getNodeById, NODE_CATEGORIES, ParamSchema } from "@/lib/nodeRegistry";
 import { Input } from "@/components/ui/input";
@@ -16,6 +17,117 @@ import {
 } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
 
+function FileUploadParam({ value, onChange }: { value: string | string[], onChange: (val: string[]) => void }) {
+  const [isDragging, setIsDragging] = useState(false);
+  const [isUploading, setIsUploading] = useState(false);
+  const [progress, setProgress] = useState(0);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Parse existing value into an array
+  const files = Array.isArray(value) ? value : value ? [value] : [];
+
+  const handleFiles = (selectedFiles: FileList | null) => {
+    if (!selectedFiles || selectedFiles.length === 0) return;
+    setIsUploading(true);
+    setProgress(0);
+
+    // Simulate upload progress
+    const interval = setInterval(() => {
+      setProgress((prev) => {
+        if (prev >= 100) {
+          clearInterval(interval);
+          // Simulate generated storage references
+          const newUrls = Array.from(selectedFiles).map(
+            (f) => `storage://bio-bucket/uploads/${f.name.replace(/\s+/g, "_")}`
+          );
+          onChange([...files, ...newUrls]);
+          setIsUploading(false);
+          return 100;
+        }
+        return prev + 15;
+      });
+    }, 200);
+  };
+
+  const removeFile = (index: number) => {
+    const newFiles = [...files];
+    newFiles.splice(index, 1);
+    onChange(newFiles);
+  };
+
+  return (
+    <div className="space-y-2">
+      {/* Upload Zone */}
+      <div
+        className={cn(
+          "border-2 border-dashed rounded-lg p-4 text-center cursor-pointer transition-colors relative overflow-hidden",
+          isDragging ? "border-primary bg-primary/5" : "border-border hover:border-muted-foreground/50",
+          isUploading && "pointer-events-none opacity-80"
+        )}
+        onDragOver={(e) => { e.preventDefault(); setIsDragging(true); }}
+        onDragLeave={() => setIsDragging(false)}
+        onDrop={(e) => {
+          e.preventDefault();
+          setIsDragging(false);
+          handleFiles(e.dataTransfer.files);
+        }}
+        onClick={() => fileInputRef.current?.click()}
+      >
+        <input
+          ref={fileInputRef}
+          type="file"
+          multiple
+          className="hidden"
+          onChange={(e) => handleFiles(e.target.files)}
+        />
+        
+        {isUploading ? (
+          <div className="flex flex-col items-center gap-2 py-2">
+            <Loader2 size={24} className="text-primary animate-spin" />
+            <div className="text-xs text-muted-foreground font-medium">Uploading... {progress}%</div>
+            <div className="w-full bg-secondary h-1.5 rounded-full mt-1 overflow-hidden">
+              <div className="bg-primary h-full transition-all duration-200" style={{ width: `${progress}%` }} />
+            </div>
+          </div>
+        ) : (
+          <div className="flex flex-col items-center gap-2 py-2 text-muted-foreground">
+            <UploadCloud size={24} className="opacity-70" />
+            <div className="text-xs">
+              <span className="font-semibold text-primary">Click to upload</span> or drag and drop
+            </div>
+            <div className="text-[10px] opacity-60">
+              FASTQ, FASTA, CSV, TSV
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* File List */}
+      {files.length > 0 && (
+        <div className="space-y-1.5 mt-3">
+          {files.map((fileUrl, idx) => {
+            const filename = fileUrl.split("/").pop() || "unknown file";
+            return (
+              <div key={idx} className="flex items-center justify-between bg-secondary/50 rounded-md p-2 text-xs group">
+                <div className="flex items-center gap-2 truncate pr-2">
+                  <File size={12} className="text-muted-foreground flex-shrink-0" />
+                  <span className="truncate text-foreground font-medium">{filename}</span>
+                </div>
+                <button
+                  className="text-muted-foreground hover:text-destructive opacity-0 group-hover:opacity-100 transition-opacity"
+                  onClick={(e) => { e.stopPropagation(); removeFile(idx); }}
+                >
+                  <X size={12} />
+                </button>
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function ParamField({
   param,
   value,
@@ -26,6 +138,10 @@ function ParamField({
   onChange: (val: any) => void;
 }) {
   switch (param.type) {
+    case "file_upload":
+      return (
+        <FileUploadParam value={value} onChange={onChange} />
+      );
     case "select":
       return (
         <Select value={String(value)} onValueChange={onChange}>

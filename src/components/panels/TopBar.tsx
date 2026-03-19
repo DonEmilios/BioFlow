@@ -1,10 +1,16 @@
-import { Save, FolderOpen, Trash2, Play, PanelLeftClose, PanelLeft, FlaskConical } from "lucide-react";
+import { Save, FolderOpen, Trash2, Play, PanelLeftClose, PanelLeft, FlaskConical, ChevronDown } from "lucide-react";
 import { usePipelineStore } from "@/store/pipelineStore";
 import { useUIStore } from "@/store/uiStore";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { toast } from "sonner";
-import { demoPipelineNodes, demoPipelineEdges, DEMO_PIPELINE_NAME } from "@/lib/demoPipeline";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { ALL_DEMOS } from "@/lib/demoPipeline";
 
 export default function TopBar() {
   const { pipelineName, setPipelineName, savePipeline, loadPipeline, clearPipeline, loadDemo, nodes, isRunning, runPipeline } =
@@ -75,18 +81,37 @@ export default function TopBar() {
           <FolderOpen size={12} strokeWidth={1.5} />
           Load
         </Button>
-        <Button
-          variant="ghost"
-          size="sm"
-          className="h-7 text-xs gap-1.5 text-muted-foreground"
-          onClick={() => {
-            loadDemo(demoPipelineNodes, demoPipelineEdges, DEMO_PIPELINE_NAME);
-            toast.success("Demo pipeline loaded — RNA-seq WT vs Knockout");
-          }}
-        >
-          <FlaskConical size={12} strokeWidth={1.5} />
-          Demo
-        </Button>
+
+        {/* Demo dropdown */}
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-7 text-xs gap-1 text-muted-foreground"
+            >
+              <FlaskConical size={12} strokeWidth={1.5} />
+              Demo
+              <ChevronDown size={10} strokeWidth={1.5} />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end" className="w-64">
+            {ALL_DEMOS.map((demo, i) => (
+              <DropdownMenuItem
+                key={i}
+                onClick={() => {
+                  loadDemo(demo.nodes, demo.edges, demo.name);
+                  toast.success(`Demo loaded — ${demo.name}`);
+                }}
+                className="text-xs cursor-pointer"
+              >
+                <FlaskConical size={12} strokeWidth={1.5} className="mr-2 shrink-0" />
+                {demo.name}
+              </DropdownMenuItem>
+            ))}
+          </DropdownMenuContent>
+        </DropdownMenu>
+
         <Button
           variant="ghost"
           size="sm"

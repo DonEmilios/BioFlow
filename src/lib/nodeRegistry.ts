@@ -68,6 +68,20 @@ export const nodeRegistry: NodeRegistryEntry[] = [
   },
   // Process nodes
   {
+    id: "clean_and_subset",
+    label: "Clean & Subset",
+    category: "process",
+    description: "Filter columns, handle missing values, and normalize data.",
+    icon: "Diff",
+    input_types: ["tsv", "json", "csv"],
+    output_types: ["json"],
+    params: [
+      { id: "columns_to_keep", label: "Columns to Keep", type: "string", default: "", required: false, help_text: "Comma-separated column names (leave empty for all)." },
+      { id: "missing_values", label: "Missing Values", type: "select", default: "drop", options: [{ value: "drop", label: "Drop Row" }, { value: "zero", label: "Fill with 0" }], required: true, help_text: "How to handle missing/NaN data." },
+      { id: "normalization", label: "Normalization", type: "select", default: "none", options: [{ value: "none", label: "None" }, { value: "log2", label: "Log2 Transform" }, { value: "zscore", label: "Z-Score" }], required: true, help_text: "Mathematical transformation to apply to numeric columns." },
+    ],
+  },
+  {
     id: "filter_data",
     label: "Filter Data",
     category: "process",

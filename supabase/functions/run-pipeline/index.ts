@@ -393,6 +393,106 @@ Provide a concise, easy-to-understand summary.`;
         };
       },
 
+      clean_and_subset: async ({ params, inputs }) => {
+        const { columns_to_keep = "", missing_values = "drop", normalization = "none" } = params;
+        
+        let sourceData: any[] = [];
+        for (const inputKey in inputs) {
+          if (inputs[inputKey] && Array.isArray(inputs[inputKey].data)) {
+            sourceData = inputs[inputKey].data;
+            break;
+          }
+        }
+
+        if (sourceData.length === 0) {
+          return { summary: "No structured data received to clean.", data: [] };
+        }
+
+        let processed = sourceData;
+
+        // 1. Column subset
+        if (typeof columns_to_keep === "string" && columns_to_keep.trim() !== "") {
+          const cols = columns_to_keep.split(",").map((c: string) => c.trim()).filter(Boolean);
+          if (cols.length > 0) {
+            processed = processed.map(row => {
+              const newRow: any = {};
+              cols.forEach((c: string) => {
+                if (c in row) newRow[c] = row[c];
+              });
+              return newRow;
+            });
+          }
+        }
+
+        let imputedCells = 0;
+
+        // 2. Handle missing values
+        processed = processed.map(row => {
+          let hasMissing = false;
+          const newRow = { ...row };
+          for (const key in newRow) {
+            if (newRow[key] === null || newRow[key] === undefined || newRow[key] === "") {
+              hasMissing = true;
+              if (missing_values === "zero") {
+                newRow[key] = 0;
+                imputedCells++;
+              }
+            }
+          }
+          if (missing_values === "drop" && hasMissing) return null;
+          return newRow;
+        }).filter(Boolean);
+
+        // 3. Normalization (apply only to numeric values)
+        if (normalization !== "none") {
+          let colStats: Record<string, { sum: number, count: number, mean?: number, std?: number }> = {};
+          
+          if (normalization === "zscore") {
+            processed.forEach(row => {
+              for (const key in row) {
+                if (typeof row[key] === "number") {
+                  if (!colStats[key]) colStats[key] = { sum: 0, count: 0 };
+                  colStats[key].sum += row[key];
+                  colStats[key].count++;
+                }
+              }
+            });
+            for (const key in colStats) {
+              colStats[key].mean = colStats[key].sum / colStats[key].count;
+              let varianceSum = 0;
+              processed.forEach(row => {
+                if (typeof row[key] === "number") {
+                  varianceSum += Math.pow(row[key] - colStats[key].mean!, 2);
+                }
+              });
+              colStats[key].std = Math.sqrt(varianceSum / colStats[key].count) || 1;
+            }
+          }
+
+          processed = processed.map(row => {
+            const newRow = { ...row };
+            for (const key in newRow) {
+              if (typeof newRow[key] === "number") {
+                if (normalization === "log2") {
+                  newRow[key] = newRow[key] > 0 ? Math.log2(newRow[key]) : 0;
+                } else if (normalization === "zscore") {
+                  newRow[key] = (newRow[key] - colStats[key].mean!) / colStats[key].std!;
+                }
+              }
+            }
+            return newRow;
+          });
+        }
+
+        return {
+          summary: `Cleaned data: ${processed.length} rows remaining. Imputed: ${imputedCells} cells. Norm: ${normalization}.`,
+          original_rows: sourceData.length,
+          final_rows: processed.length,
+          imputed_cells: imputedCells > 0 ? imputedCells : undefined,
+          data: processed
+        };
+      },
+
       webhook_export: async ({ params, inputs }) => {
         const { url, message = "Pipeline Execution Complete" } = params;
         if (!url) throw new Error("Webhook URL is required.");

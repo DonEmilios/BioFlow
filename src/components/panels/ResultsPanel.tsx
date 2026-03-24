@@ -183,7 +183,17 @@ export default function ResultsPanel() {
     labelMap[n.id] = n.data.label;
   });
 
-  const resultEntries = runResults ? Object.entries(runResults) : [];
+  const executionOrder = usePipelineStore((s) => s.executionOrder);
+  const resultEntries = runResults 
+    ? Object.entries(runResults).sort((a, b) => {
+        const idA = executionOrder.indexOf(a[0]);
+        const idB = executionOrder.indexOf(b[0]);
+        if (idA === -1 && idB === -1) return 0;
+        if (idA === -1) return 1;
+        if (idB === -1) return -1;
+        return idA - idB;
+      })
+    : [];
 
   return (
     <AnimatePresence>

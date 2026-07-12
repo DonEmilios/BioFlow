@@ -68,6 +68,16 @@ export const nodeRegistry: NodeRegistryEntry[] = [
   },
   // Process nodes
   {
+    id: "gc_content",
+    label: "GC Content",
+    category: "process",
+    description: "Computes real base composition (GC%, sequence count, average length) from an uploaded FASTA/FASTQ file. Runs as a real subprocess on the compute backend — not mocked.",
+    icon: "Percent",
+    input_types: ["fasta", "fastq"],
+    output_types: ["json"],
+    params: [],
+  },
+  {
     id: "clean_and_subset",
     label: "Clean & Subset",
     category: "process",

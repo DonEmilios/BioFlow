@@ -3,6 +3,7 @@ import * as LucideIcons from "lucide-react";
 import { X, Sparkles, Trash2, UploadCloud, File, Loader2 } from "lucide-react";
 import { useState, useRef } from "react";
 import { usePipelineStore } from "@/store/pipelineStore";
+import { useCustomNodeStore } from "@/store/customNodeStore";
 import { getNodeById, NODE_CATEGORIES, ParamSchema } from "@/lib/nodeRegistry";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -17,6 +18,8 @@ import {
 } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
 
+const COMPUTE_BACKEND_URL = import.meta.env.VITE_COMPUTE_BACKEND_URL as string | undefined;
+
 function FileUploadParam({ value, onChange }: { value: string | string[], onChange: (val: string[]) => void }) {
   const [isDragging, setIsDragging] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
@@ -26,27 +29,53 @@ function FileUploadParam({ value, onChange }: { value: string | string[], onChan
   // Parse existing value into an array
   const files = Array.isArray(value) ? value : value ? [value] : [];
 
-  const handleFiles = (selectedFiles: FileList | null) => {
+  const uploadReal = async (selectedFiles: File[]) => {
+    const uploadedIds: string[] = [];
+    for (let i = 0; i < selectedFiles.length; i++) {
+      const file = selectedFiles[i];
+      setProgress(Math.round((i / selectedFiles.length) * 100));
+      const res = await fetch(`${COMPUTE_BACKEND_URL}/api/uploads`, {
+        method: "POST",
+        headers: { "X-Filename": file.name, "Content-Type": "application/octet-stream" },
+        body: await file.arrayBuffer(),
+      });
+      if (!res.ok) throw new Error(`Upload failed for ${file.name}: ${res.statusText}`);
+      const data = await res.json();
+      uploadedIds.push(data.id);
+    }
+    setProgress(100);
+    return uploadedIds;
+  };
+
+  const uploadSimulated = (selectedFiles: File[]) =>
+    new Promise<string[]>((resolve) => {
+      setProgress(0);
+      const interval = setInterval(() => {
+        setProgress((prev) => {
+          if (prev >= 100) {
+            clearInterval(interval);
+            resolve(selectedFiles.map((f) => `storage://bio-bucket/uploads/${f.name.replace(/\s+/g, "_")}`));
+            return 100;
+          }
+          return prev + 15;
+        });
+      }, 200);
+    });
+
+  const handleFiles = async (selectedFiles: FileList | null) => {
     if (!selectedFiles || selectedFiles.length === 0) return;
     setIsUploading(true);
     setProgress(0);
 
-    // Simulate upload progress
-    const interval = setInterval(() => {
-      setProgress((prev) => {
-        if (prev >= 100) {
-          clearInterval(interval);
-          // Simulate generated storage references
-          const newUrls = Array.from(selectedFiles).map(
-            (f) => `storage://bio-bucket/uploads/${f.name.replace(/\s+/g, "_")}`
-          );
-          onChange([...files, ...newUrls]);
-          setIsUploading(false);
-          return 100;
-        }
-        return prev + 15;
-      });
-    }, 200);
+    try {
+      const fileArray = Array.from(selectedFiles);
+      const uploadedRefs = COMPUTE_BACKEND_URL ? await uploadReal(fileArray) : await uploadSimulated(fileArray);
+      onChange([...files, ...uploadedRefs]);
+    } catch (err) {
+      console.error("File upload failed:", err);
+    } finally {
+      setIsUploading(false);
+    }
   };
 
   const removeFile = (index: number) => {
@@ -187,8 +216,11 @@ export default function ConfigPanel() {
   const { nodes, selectedNodeId, setSelectedNode, updateNodeParams, removeNode } =
     usePipelineStore();
 
+  const customNodes = useCustomNodeStore((s) => s.customNodes);
   const selectedNode = nodes.find((n) => n.id === selectedNodeId);
-  const registryEntry = selectedNode ? getNodeById(selectedNode.data.tool) : null;
+  const registryEntry = selectedNode
+    ? getNodeById(selectedNode.data.tool) ?? customNodes.find((n) => n.id === selectedNode.data.tool)
+    : null;
 
   return (
     <AnimatePresence>

@@ -11,6 +11,10 @@ node_modules
 dist
 dist-ssr
 *.local
+.claude/settings.local.json
+
+# Compute server runtime data (uploads, generated custom-node scripts)
+server/data/
 
 # Editor directories and files
 .vscode/*

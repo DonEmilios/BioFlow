@@ -1,0 +1,495 @@
+import { Node, Edge } from "reactflow";
+import { PipelineNodeData } from "@/store/pipelineStore";
+
+interface NodeExecutionArgs {
+  nodeId: string;
+  toolId: string;
+  params: Record<string, any>;
+  inputs: Record<string, any>; // outputs from upstream nodes
+}
+type NodeExecutor = (args: NodeExecutionArgs) => Promise<any>;
+
+// Mock results keyed by tool id, used as a fallback for tools that don't
+// have dynamic logic below (heavy bioinformatics tools can't actually run
+// in the browser, so we simulate realistic output).
+const MOCK_RESULTS: Record<string, any> = {
+  file_input: {
+    summary: "Loaded 2 paired-end FASTQ files (WT_R1.fq.gz, KO_R1.fq.gz)",
+    reads_total: 48_200_000,
+    file_size_mb: 3200,
+  },
+  fastqc: {
+    summary:
+      "Quality scores ≥30 across 94% of bases. No adapter contamination detected.",
+    per_base_quality: "PASS",
+    per_sequence_quality: "PASS",
+    adapter_content: "PASS",
+    gc_content: "WARN",
+    overrepresented_sequences: "PASS",
+  },
+  trimmomatic: {
+    summary: "Trimmed adapters and low-quality bases. 96.2% of reads survived.",
+    input_reads: 48_200_000,
+    surviving_reads: 46_384_400,
+    dropped_reads: 1_815_600,
+    avg_length_after: 142,
+  },
+  star_alignment: {
+    summary:
+      "Aligned to GRCh38 with 91.3% unique mapping rate using 2-pass mode.",
+    uniquely_mapped_pct: 91.3,
+    multi_mapped_pct: 5.1,
+    unmapped_pct: 3.6,
+    splice_junctions: 312_400,
+  },
+  featurecounts: {
+    summary:
+      "Counted reads for 58,219 genes. 82.4% of reads assigned to features.",
+    assigned_reads: 38_220_700,
+    unassigned_ambiguity: 2_100_000,
+    unassigned_no_features: 6_063_700,
+    genes_detected: 22_847,
+  },
+  deseq2: {
+    summary:
+      "1,247 genes differentially expressed (padj < 0.05, |LFC| > 1). 683 upregulated, 564 downregulated in BRCA1-KO.",
+    total_de_genes: 1247,
+    upregulated: 683,
+    downregulated: 564,
+    top_genes: [
+      { gene: "BRCA1", log2fc: -4.21, padj: 1.2e-42 },
+      { gene: "TP53", log2fc: 2.87, padj: 3.1e-28 },
+      { gene: "RAD51", log2fc: -3.14, padj: 8.7e-22 },
+      { gene: "CHEK2", log2fc: 2.45, padj: 1.9e-18 },
+      { gene: "ATM", log2fc: 1.92, padj: 4.2e-15 },
+    ],
+  },
+  volcano_plot: {
+    summary: "Volcano plot generated. 1,247 significant genes highlighted.",
+    image_url: "https://placehold.co/600x400/1a1a2e/16a34a?text=Volcano+Plot",
+    significant_points: 1247,
+  },
+  heatmap: {
+    summary:
+      "Clustered heatmap of top 50 DE genes shows clear WT vs KO separation.",
+    image_url: "https://placehold.co/600x400/1a1a2e/3b82f6?text=Heatmap",
+    clusters: 3,
+    silhouette_score: 0.82,
+  },
+  ai_interpret: {
+    summary:
+      "The BRCA1-KO condition shows significant disruption of DNA damage repair pathways. Key findings: (1) BRCA1 itself is strongly downregulated (LFC = -4.21), confirming successful knockout. (2) Compensatory upregulation of TP53 and CHEK2 suggests activation of alternative DNA damage checkpoints. (3) Downregulation of RAD51 indicates impaired homologous recombination repair. These results are consistent with BRCA1-deficient phenotypes in the literature and suggest potential sensitivity to PARP inhibitors.",
+    confidence: 0.94,
+    pathways_affected: [
+      "Homologous recombination",
+      "p53 signaling",
+      "Cell cycle checkpoint",
+      "DNA damage response",
+    ],
+  },
+  csv_export: {
+    summary:
+      "Exported 3 CSV files: de_results.csv (1,247 rows), counts_matrix.csv (22,847 × 6), qc_summary.csv",
+    files: ["de_results.csv", "counts_matrix.csv", "qc_summary.csv"],
+    total_rows: 24_094,
+  },
+};
+
+function firstUpstreamArray(inputs: Record<string, any>): any[] {
+  for (const key in inputs) {
+    if (inputs[key] && Array.isArray(inputs[key].data)) {
+      return inputs[key].data;
+    }
+  }
+  return [];
+}
+
+const ExecutorRegistry: Record<string, NodeExecutor> = {
+  file_input: async ({ params }) => {
+    const { file_url, file_format = "fastq", paired_end = true } = params;
+    if (!file_url) throw new Error("File URL is required. Please enter a valid HTTPS URL.");
+
+    return {
+      summary: `Successfully ingested ${file_format.toUpperCase()} file from URL.`,
+      file_url,
+      format: file_format,
+      paired_end,
+      reads_total: Math.floor(Math.random() * 50000000) + 10000000,
+      file_size_mb: Math.floor(Math.random() * 5000) + 500,
+    };
+  },
+
+  sra_input: async ({ params }) => {
+    const { accession, split_files = true } = params;
+    if (!accession) throw new Error("SRA Accession is required.");
+
+    return {
+      summary: `Downloaded SRA dataset ${accession} (Split: ${split_files}).`,
+      accession,
+      split_files,
+      reads_total: Math.floor(Math.random() * 100000000) + 20000000,
+      layout: split_files ? "PAIRED" : "SINGLE",
+    };
+  },
+
+  ncbi_fetch: async ({ params }) => {
+    const { database = "nucleotide", query = "" } = params;
+    if (!query) throw new Error("Search query is required.");
+
+    const dbMap: Record<string, string> = {
+      nucleotide: "nuccore",
+      protein: "protein",
+      sra: "sra",
+    };
+    const db = dbMap[database] || "nuccore";
+
+    const searchUrl = `https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esearch.fcgi?db=${db}&term=${encodeURIComponent(query)}&retmode=json`;
+    const searchRes = await fetch(searchUrl);
+    if (!searchRes.ok) throw new Error(`NCBI Search failed: ${searchRes.statusText}`);
+
+    const searchData = await searchRes.json();
+    const ids = searchData.esearchresult?.idlist || [];
+
+    if (ids.length === 0) {
+      return { summary: `No results found in ${database} for "${query}".`, sequences: [] };
+    }
+
+    const fetchIds = ids.slice(0, 5).join(",");
+    const summaryUrl = `https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esummary.fcgi?db=${db}&id=${fetchIds}&retmode=json`;
+    const summaryRes = await fetch(summaryUrl);
+    const summaryData = summaryRes.ok ? await summaryRes.json() : null;
+
+    const items = summaryData?.result
+      ? Object.keys(summaryData.result)
+          .filter((k) => k !== "uids")
+          .map((k) => summaryData.result[k])
+      : [];
+
+    return {
+      summary: `Found ${ids.length} results. Fetched details for top ${items.length}.`,
+      query,
+      database,
+      total_hits: ids.length,
+      top_results: items.map((i: any) => ({
+        uid: i.uid,
+        title: i.title || i.slen,
+        accession: i.caption,
+      })),
+    };
+  },
+
+  ai_interpret: async ({ params, inputs }) => {
+    const { audience = "wet_lab_student", focus = "summary" } = params;
+    const nodeNames = Object.keys(inputs).join(", ");
+
+    return {
+      summary: "Dynamic mock interpretation generated.",
+      interpretation: `Based on the provided data from upstream steps (${nodeNames}), the results show standard successful processing. As a ${audience.replace(/_/g, " ")}, you should note the focus on ${focus} metrics indicates the pipeline functioned normally.`,
+      audience,
+      focus,
+      raw_context_seen: Object.keys(inputs),
+    };
+  },
+
+  deseq2: async () => {
+    // Return structured data instead of just a string summary, so viz nodes can use it
+    return {
+      summary: "Differential expression analysis computed successfully.",
+      total_de_genes: 1247,
+      upregulated: 683,
+      downregulated: 564,
+      data: [
+        { gene: "BRCA1", log2fc: -4.21, padj: 1.2e-42 },
+        { gene: "TP53", log2fc: 2.87, padj: 3.1e-28 },
+        { gene: "RAD51", log2fc: -3.14, padj: 8.7e-22 },
+        { gene: "CHEK2", log2fc: 2.45, padj: 1.9e-18 },
+        { gene: "ATM", log2fc: 1.92, padj: 4.2e-15 },
+        { gene: "PARP1", log2fc: 1.21, padj: 1e-4 },
+        { gene: "MYC", log2fc: -1.05, padj: 0.02 },
+        { gene: "ACTB", log2fc: 0.01, padj: 0.99 }, // non-significant example
+      ],
+    };
+  },
+
+  volcano_plot: async ({ params, inputs }) => {
+    const chartData = firstUpstreamArray(inputs);
+    const lfcLine = params.lfc_line || 1;
+    const padjLine = params.padj_line || 0.05;
+
+    let sigCount = 0;
+    chartData.forEach((d) => {
+      if (Math.abs(d.log2fc) >= lfcLine && d.padj <= padjLine) {
+        sigCount++;
+      }
+    });
+
+    return {
+      summary: `Dynamic Volcano Plot generated across ${chartData.length} genes. Found ${sigCount} significant points based on thresholds (|LFC|>=${lfcLine}, p-adj<=${padjLine}).`,
+      image_url: "https://placehold.co/600x400/1a1a2e/16a34a?text=Dynamic+Volcano+Plot",
+      significant_points: sigCount,
+      chart_config: {
+        data: chartData,
+        x_axis: "log2fc",
+        y_axis: "padj_log10",
+        thresholds: { lfc: lfcLine, padj: padjLine },
+      },
+    };
+  },
+
+  filter_data: async ({ params, inputs }) => {
+    const { column = "padj", operator = "<", value = 0.05 } = params;
+    const sourceData = firstUpstreamArray(inputs);
+
+    if (sourceData.length === 0) {
+      return { summary: "No structured data received to filter.", data: [] };
+    }
+
+    const filtered = sourceData.filter((item) => {
+      const val = item[column];
+      if (val === undefined) return false;
+      if (operator === "<") return val < value;
+      if (operator === ">") return val > value;
+      if (operator === "==") return val == value;
+      return false;
+    });
+
+    return {
+      summary: `Filtered ${sourceData.length} rows down to ${filtered.length} using condition: ${column} ${operator} ${value}`,
+      original_rows: sourceData.length,
+      filtered_rows: filtered.length,
+      data: filtered,
+    };
+  },
+
+  clean_and_subset: async ({ params, inputs }) => {
+    const { columns_to_keep = "", missing_values = "drop", normalization = "none" } = params;
+    const sourceData = firstUpstreamArray(inputs);
+
+    if (sourceData.length === 0) {
+      return { summary: "No structured data received to clean.", data: [] };
+    }
+
+    let processed = sourceData;
+
+    // 1. Column subset
+    if (typeof columns_to_keep === "string" && columns_to_keep.trim() !== "") {
+      const cols = columns_to_keep.split(",").map((c: string) => c.trim()).filter(Boolean);
+      if (cols.length > 0) {
+        processed = processed.map((row) => {
+          const newRow: any = {};
+          cols.forEach((c: string) => {
+            if (c in row) newRow[c] = row[c];
+          });
+          return newRow;
+        });
+      }
+    }
+
+    let imputedCells = 0;
+
+    // 2. Handle missing values
+    processed = processed
+      .map((row) => {
+        let hasMissing = false;
+        const newRow = { ...row };
+        for (const key in newRow) {
+          if (newRow[key] === null || newRow[key] === undefined || newRow[key] === "") {
+            hasMissing = true;
+            if (missing_values === "zero") {
+              newRow[key] = 0;
+              imputedCells++;
+            }
+          }
+        }
+        if (missing_values === "drop" && hasMissing) return null;
+        return newRow;
+      })
+      .filter(Boolean);
+
+    // 3. Normalization (apply only to numeric values)
+    if (normalization !== "none") {
+      const colStats: Record<string, { sum: number; count: number; mean?: number; std?: number }> = {};
+
+      if (normalization === "zscore") {
+        processed.forEach((row) => {
+          for (const key in row) {
+            if (typeof row[key] === "number") {
+              if (!colStats[key]) colStats[key] = { sum: 0, count: 0 };
+              colStats[key].sum += row[key];
+              colStats[key].count++;
+            }
+          }
+        });
+        for (const key in colStats) {
+          colStats[key].mean = colStats[key].sum / colStats[key].count;
+          let varianceSum = 0;
+          processed.forEach((row) => {
+            if (typeof row[key] === "number") {
+              varianceSum += Math.pow(row[key] - colStats[key].mean!, 2);
+            }
+          });
+          colStats[key].std = Math.sqrt(varianceSum / colStats[key].count) || 1;
+        }
+      }
+
+      processed = processed.map((row) => {
+        const newRow = { ...row };
+        for (const key in newRow) {
+          if (typeof newRow[key] === "number") {
+            if (normalization === "log2") {
+              newRow[key] = newRow[key] > 0 ? Math.log2(newRow[key]) : 0;
+            } else if (normalization === "zscore") {
+              newRow[key] = (newRow[key] - colStats[key].mean!) / colStats[key].std!;
+            }
+          }
+        }
+        return newRow;
+      });
+    }
+
+    return {
+      summary: `Cleaned data: ${processed.length} rows remaining. Imputed: ${imputedCells} cells. Norm: ${normalization}.`,
+      original_rows: sourceData.length,
+      final_rows: processed.length,
+      imputed_cells: imputedCells > 0 ? imputedCells : undefined,
+      data: processed,
+    };
+  },
+
+  webhook_export: async ({ params, inputs }) => {
+    const { url, message = "Pipeline Execution Complete" } = params;
+    if (!url) throw new Error("Webhook URL is required.");
+
+    const payloadData = JSON.parse(JSON.stringify(inputs));
+    for (const k in payloadData) {
+      if (Array.isArray(payloadData[k].data) && payloadData[k].data.length > 50) {
+        payloadData[k].data = ["Data truncated for webhook (>50 items)..."];
+      }
+    }
+
+    const payload = {
+      content: message,
+      embeds: [
+        {
+          title: "BioFlow Canvas Execution Results",
+          description: `Received outputs from ${Object.keys(inputs).length} upstream nodes.`,
+          fields: Object.keys(inputs).map((k) => ({
+            name: k,
+            value: inputs[k].summary || "No summary provided",
+          })),
+        },
+      ],
+      raw_data: payloadData,
+    };
+
+    try {
+      const res = await fetch(url, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+
+      if (!res.ok) throw new Error(`Webhook failed with status ${res.status}`);
+
+      return {
+        summary: `Successfully posted results to webhook: ${url}`,
+        status: "Success",
+      };
+    } catch (err: any) {
+      return {
+        summary: `Webhook export failed: ${err.message}`,
+        status: "Failed",
+        error: err.message,
+      };
+    }
+  },
+
+  default: async ({ toolId, params, inputs }) => {
+    return {
+      summary: `Executed standard logic for ${toolId}`,
+      received_inputs: Object.keys(inputs).length,
+      upstream_data: inputs,
+      mock_config: params,
+      ...(MOCK_RESULTS[toolId] || {}),
+    };
+  },
+};
+
+export interface ExecutePipelineResult {
+  results: Record<string, any>;
+}
+
+export async function executePipeline(
+  nodes: Node<PipelineNodeData>[],
+  edges: Edge[]
+): Promise<ExecutePipelineResult> {
+  const adjList: Record<string, string[]> = {};
+  const inDegree: Record<string, number> = {};
+  const nodeMap: Record<string, any> = {};
+
+  nodes.forEach((n) => {
+    adjList[n.id] = [];
+    inDegree[n.id] = 0;
+    nodeMap[n.id] = n;
+  });
+
+  edges.forEach((e) => {
+    if (adjList[e.source] && inDegree[e.target] !== undefined) {
+      adjList[e.source].push(e.target);
+      inDegree[e.target]++;
+    }
+  });
+
+  const queue: string[] = [];
+  nodes.forEach((n) => {
+    if (inDegree[n.id] === 0) queue.push(n.id);
+  });
+
+  const executionOrder: string[] = [];
+  while (queue.length > 0) {
+    const u = queue.shift()!;
+    executionOrder.push(u);
+    adjList[u].forEach((v) => {
+      inDegree[v]--;
+      if (inDegree[v] === 0) queue.push(v);
+    });
+  }
+
+  if (executionOrder.length !== nodes.length) {
+    throw new Error("Cycle detected in pipeline graph or invalid node references.");
+  }
+
+  const results: Record<string, any> = {};
+  const nodeOutputs: Record<string, any> = {};
+
+  for (const nodeId of executionOrder) {
+    const node = nodeMap[nodeId];
+    const toolId = node.data?.tool || node.tool;
+    const params = node.data?.params || {};
+
+    const parentEdges = edges.filter((e) => e.target === nodeId);
+    const inputsForNode: Record<string, any> = {};
+    parentEdges.forEach((e) => {
+      if (nodeOutputs[e.source]) {
+        inputsForNode[e.source] = nodeOutputs[e.source];
+      }
+    });
+
+    try {
+      const executor = ExecutorRegistry[toolId] || ExecutorRegistry.default;
+      const output = await executor({ nodeId, toolId, params, inputs: inputsForNode });
+
+      nodeOutputs[nodeId] = output;
+      results[nodeId] = {
+        tool: toolId,
+        label: node.data?.label || toolId,
+        ...output,
+      };
+    } catch (err: any) {
+      results[nodeId] = { error: err.message || String(err) };
+      break; // Stop execution on first failure
+    }
+  }
+
+  return { results };
+}

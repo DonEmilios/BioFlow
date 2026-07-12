@@ -11,6 +11,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { ALL_DEMOS } from "@/lib/demoPipeline";
+import CreateNodeDialog from "@/components/panels/CreateNodeDialog";
 
 export default function TopBar() {
   const { pipelineName, setPipelineName, savePipeline, loadPipeline, clearPipeline, loadDemo, nodes, isRunning, runPipeline } =
@@ -56,7 +57,7 @@ export default function TopBar() {
           onClick={async () => {
             try {
               await savePipeline();
-              toast.success("Pipeline saved to cloud");
+              toast.success("Pipeline saved");
             } catch (e) {
               toast.error("Failed to save pipeline");
             }
@@ -72,7 +73,7 @@ export default function TopBar() {
           onClick={async () => {
             try {
               await loadPipeline();
-              toast.success("Pipeline loaded from cloud");
+              toast.success("Pipeline loaded");
             } catch (e) {
               toast.error("No saved pipeline found");
             }
@@ -111,6 +112,8 @@ export default function TopBar() {
             ))}
           </DropdownMenuContent>
         </DropdownMenu>
+
+        <CreateNodeDialog />
 
         <Button
           variant="ghost"

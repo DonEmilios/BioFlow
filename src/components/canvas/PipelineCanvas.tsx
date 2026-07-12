@@ -9,6 +9,7 @@ import ReactFlow, {
 } from "reactflow";
 import "reactflow/dist/style.css";
 import { usePipelineStore } from "@/store/pipelineStore";
+import { useCustomNodeStore } from "@/store/customNodeStore";
 import { getNodeById } from "@/lib/nodeRegistry";
 import BioFlowNode from "./BioFlowNode";
 import { v4Fallback } from "@/lib/idgen";
@@ -28,6 +29,7 @@ function PipelineCanvasInner() {
     setSelectedNode,
   } = usePipelineStore();
 
+  const customNodes = useCustomNodeStore((s) => s.customNodes);
   const reactFlowWrapper = useRef<HTMLDivElement>(null);
   const reactFlowInstance = useRef<ReactFlowInstance | null>(null);
 
@@ -42,7 +44,7 @@ function PipelineCanvasInner() {
       const toolId = event.dataTransfer.getData("application/bioflow-node");
       if (!toolId || !reactFlowInstance.current || !reactFlowWrapper.current) return;
 
-      const registryEntry = getNodeById(toolId);
+      const registryEntry = getNodeById(toolId) ?? customNodes.find((n) => n.id === toolId);
       if (!registryEntry) return;
 
       const bounds = reactFlowWrapper.current.getBoundingClientRect();
@@ -73,7 +75,7 @@ function PipelineCanvasInner() {
 
       addNode(newNode);
     },
-    [addNode]
+    [addNode, customNodes]
   );
 
   const onPaneClick = useCallback(() => {

@@ -4,19 +4,26 @@ import * as LucideIcons from "lucide-react";
 import { Search, ChevronRight } from "lucide-react";
 import { nodeRegistry, NODE_CATEGORIES, NodeCategory } from "@/lib/nodeRegistry";
 import { useUIStore } from "@/store/uiStore";
+import { useCustomNodeStore } from "@/store/customNodeStore";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 const categoryOrder: NodeCategory[] = ["input", "process", "database", "ai", "viz", "output"];
 
 export default function SidebarLibrary() {
   const { sidebarSearchQuery, setSidebarSearchQuery } = useUIStore();
+  const { customNodes, loaded, refresh } = useCustomNodeStore();
   const [expandedCategories, setExpandedCategories] = useState<Set<string>>(
     new Set(categoryOrder)
   );
 
-  const filteredNodes = nodeRegistry.filter(
+  useEffect(() => {
+    if (!loaded) refresh();
+  }, [loaded, refresh]);
+
+  const allNodes = [...nodeRegistry, ...customNodes];
+  const filteredNodes = allNodes.filter(
     (node) =>
       node.label.toLowerCase().includes(sidebarSearchQuery.toLowerCase()) ||
       node.description.toLowerCase().includes(sidebarSearchQuery.toLowerCase())

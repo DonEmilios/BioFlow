@@ -80,6 +80,36 @@ const manifests: NodeManifest[] = [
     execution: { runtime: "javascript" },
     trusted: true,
   },
+  {
+    id: "metabolite_stats",
+    label: "Metabolite Stats",
+    category: "process",
+    description: "Real differential abundance from a metabolomics CSV: log2 fold change, Welch's t-test, and BH-adjusted p-values per metabolite.",
+    icon: "Activity",
+    input_types: ["csv"],
+    output_types: ["json"],
+    params: [
+      { id: "padj_cutoff", label: "Adj. p-value cutoff", type: "number", default: 0.05, required: true, help_text: "Significance threshold (BH-adjusted) for calling a metabolite changed." },
+      { id: "control_label", label: "Control group label", type: "string", default: "", required: false, help_text: "Which group value is the baseline (e.g. Control). Auto-detected if left blank." },
+    ],
+    execution: { runtime: "javascript" },
+    trusted: true,
+  },
+  {
+    id: "pathway_enrichment",
+    label: "Pathway Enrichment",
+    category: "process",
+    description: "Maps the changed metabolites onto metabolic pathways and tests which are over-represented (hypergeometric ORA) — the 'why do they change' step.",
+    icon: "Network",
+    input_types: ["json"],
+    output_types: ["json"],
+    params: [
+      { id: "padj_cutoff", label: "Significance cutoff", type: "number", default: 0.05, required: true, help_text: "Metabolites with adjusted p below this are treated as the 'changed' set for enrichment." },
+      { id: "min_hits", label: "Min metabolites per pathway", type: "number", default: 2, required: false, help_text: "Ignore pathways with fewer than this many changed metabolites." },
+    ],
+    execution: { runtime: "javascript" },
+    trusted: true,
+  },
 ];
 
 for (const m of manifests) {

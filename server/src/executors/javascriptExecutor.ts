@@ -1,3 +1,8 @@
+import { readFileSync } from "node:fs";
+import { resolveUpload } from "../storage.js";
+import { differentialAbundance, pathwayOra, PathwaySet } from "../lib/metabolomics.js";
+import pathwayLibrary from "../data/pathways.json" with { type: "json" };
+
 export interface JsExecutorArgs {
   params: Record<string, any>;
   inputs: Record<string, any>;
@@ -9,6 +14,15 @@ function firstUpstreamArray(inputs: Record<string, any>): any[] {
     if (inputs[key] && Array.isArray(inputs[key].data)) return inputs[key].data;
   }
   return [];
+}
+
+// Finds the first uploaded-file id emitted by any upstream node (e.g. File Input).
+function firstUpstreamUploadId(inputs: Record<string, any>): string | undefined {
+  for (const key in inputs) {
+    const files = inputs[key]?.files;
+    if (Array.isArray(files) && files.length > 0) return files[0];
+  }
+  return undefined;
 }
 
 export const javascriptExecutors: Record<string, JsExecutor> = {
@@ -88,6 +102,47 @@ export const javascriptExecutors: Record<string, JsExecutor> = {
       { gene: "RAD51", log2fc: -3.14, padj: 8.7e-22 },
     ],
   }),
+
+  // ─── Metabolomics biomarker discovery ───
+
+  // "Which molecules change" — real differential abundance from an uploaded
+  // samples-x-metabolites CSV (Welch's t-test on log2 intensities + BH FDR).
+  metabolite_stats: async ({ params, inputs }) => {
+    const uploadId = firstUpstreamUploadId(inputs);
+    if (!uploadId)
+      throw new Error(
+        "Connect a File Input node with an uploaded metabolomics CSV (rows = samples, columns = metabolites, plus a group column)."
+      );
+    const rec = resolveUpload(uploadId);
+    if (!rec)
+      throw new Error("Uploaded file not found (the compute server may have restarted). Re-upload and run again.");
+    const csv = readFileSync(rec.path, "utf8");
+    return differentialAbundance(csv, {
+      padjCutoff: Number(params.padj_cutoff ?? 0.05),
+      controlLabel: params.control_label || undefined,
+    });
+  },
+
+  // "Why do they change" — map the changed metabolites onto metabolic pathways
+  // and test which are over-represented (hypergeometric ORA).
+  pathway_enrichment: async ({ params, inputs }) => {
+    const rows = firstUpstreamArray(inputs);
+    if (rows.length === 0)
+      throw new Error("Connect a Metabolite Stats node upstream (its metabolite table feeds this enrichment).");
+    const cutoff = Number(params.padj_cutoff ?? 0.05);
+    const significant = rows
+      .filter((r) => {
+        const q = r.padj ?? r.pvalue;
+        return typeof q === "number" && q <= cutoff;
+      })
+      .map((r) => r.metabolite ?? r.gene)
+      .filter(Boolean);
+    const sets = (pathwayLibrary as { pathways: PathwaySet[] }).pathways;
+    return {
+      pathway_library: (pathwayLibrary as { source: string }).source,
+      ...pathwayOra(significant, sets, { minHits: Number(params.min_hits ?? 2) }),
+    };
+  },
 
   default: async ({ params, inputs }) => ({
     summary: "Executed default mock logic.",

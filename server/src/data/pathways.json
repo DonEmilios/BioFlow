@@ -1,0 +1,45 @@
+{
+  "source": "Curated starter set derived from KEGG pathway compound membership. Illustrative subset for demo/testing — NOT the full KEGG library. Swap for a complete metabolite-set library (KEGG/SMPDB) before real use.",
+  "pathways": [
+    {
+      "id": "map00010",
+      "name": "Glycolysis / Gluconeogenesis",
+      "metabolites": ["Glucose", "Glucose-6-phosphate", "Fructose-6-phosphate", "Phosphoenolpyruvate", "Pyruvate", "Lactate"]
+    },
+    {
+      "id": "map00020",
+      "name": "Citrate cycle (TCA cycle)",
+      "metabolites": ["Pyruvate", "Acetyl-CoA", "Citrate", "Isocitrate", "alpha-Ketoglutarate", "Succinate", "Fumarate", "Malate", "Oxaloacetate"]
+    },
+    {
+      "id": "map00250",
+      "name": "Alanine, aspartate and glutamate metabolism",
+      "metabolites": ["Alanine", "Aspartate", "Glutamate", "Glutamine", "alpha-Ketoglutarate", "Pyruvate", "Oxaloacetate", "Fumarate"]
+    },
+    {
+      "id": "map00220",
+      "name": "Arginine biosynthesis (urea cycle)",
+      "metabolites": ["Glutamate", "Glutamine", "Ornithine", "Citrulline", "Arginine", "Aspartate", "Fumarate", "Urea"]
+    },
+    {
+      "id": "map00230",
+      "name": "Purine metabolism",
+      "metabolites": ["Adenosine", "Inosine", "Hypoxanthine", "Xanthine", "Urate", "Guanine", "Guanosine"]
+    },
+    {
+      "id": "map00061",
+      "name": "Fatty acid biosynthesis",
+      "metabolites": ["Acetyl-CoA", "Malonyl-CoA", "Palmitate", "Stearate", "Oleate"]
+    },
+    {
+      "id": "map00071",
+      "name": "Fatty acid degradation",
+      "metabolites": ["Palmitate", "Acetyl-CoA", "Carnitine", "Acylcarnitine", "Butyrate"]
+    },
+    {
+      "id": "map00190",
+      "name": "Oxidative phosphorylation",
+      "metabolites": ["Succinate", "Fumarate", "NADH", "ATP", "ADP"]
+    }
+  ]
+}

@@ -158,9 +158,39 @@ export const demo3PipelineEdges: Edge[] = [
   { id: "ve8-11", source: "var-8", target: "var-11", type: "smoothstep" },
 ];
 
+// ─── Demo 4: Metabolomics Biomarker Discovery ───
+// Answers "which molecules change when a disease starts/progresses/responds,
+// and why?" — real differential abundance + pathway over-representation.
+// Upload examples/metabolomics_demo.csv into the File Input node, then Run.
+export const DEMO4_PIPELINE_NAME = "Metabolomics — Biomarker Discovery";
+
+export const demo4PipelineNodes: Node<PipelineNodeData>[] = [
+  demoNode("mb-1", "file_input", "Metabolite Table (CSV)", "input", "Upload a metabolomics CSV: rows = samples, columns = metabolites, one group column (e.g. Disease vs Control). See examples/metabolomics_demo.csv.", "Upload",
+    { files: [], file_format: "csv" }, X_CENTER, 0),
+  demoNode("mb-2", "metabolite_stats", "Metabolite Stats", "process", "Differential abundance: which metabolites changed between groups (log2 fold change, Welch's t-test, BH FDR).", "Activity",
+    { padj_cutoff: 0.05, control_label: "Control" }, X_CENTER, Y_SPACING),
+  demoNode("mb-3", "volcano_plot", "Volcano Plot", "viz", "Visualize changed metabolites: fold change vs significance.", "Triangle",
+    { padj_line: 0.05, lfc_line: 1 }, X_CENTER - X_OFFSET, Y_SPACING * 2),
+  demoNode("mb-4", "pathway_enrichment", "Pathway Enrichment", "process", "Which metabolic pathways are over-represented among the changed metabolites — the 'why'.", "Network",
+    { padj_cutoff: 0.05, min_hits: 2 }, X_CENTER + X_OFFSET, Y_SPACING * 2),
+  demoNode("mb-5", "ai_interpret", "AI Interpret", "ai", "Plain-language interpretation of the enriched pathways and their biological meaning.", "Sparkles",
+    { audience: "pi", focus: "biological" }, X_CENTER + X_OFFSET, Y_SPACING * 3),
+  demoNode("mb-6", "csv_export", "Export Biomarkers", "output", "Export the ranked metabolite table.", "FileDown",
+    { delimiter: "comma" }, X_CENTER - X_OFFSET, Y_SPACING * 3),
+];
+
+export const demo4PipelineEdges: Edge[] = [
+  { id: "mbe1-2", source: "mb-1", target: "mb-2", type: "smoothstep" },
+  { id: "mbe2-3", source: "mb-2", target: "mb-3", type: "smoothstep" },
+  { id: "mbe2-4", source: "mb-2", target: "mb-4", type: "smoothstep" },
+  { id: "mbe4-5", source: "mb-4", target: "mb-5", type: "smoothstep" },
+  { id: "mbe2-6", source: "mb-2", target: "mb-6", type: "smoothstep" },
+];
+
 // All demos for easy access
 export const ALL_DEMOS = [
   { name: DEMO_PIPELINE_NAME, nodes: demoPipelineNodes, edges: demoPipelineEdges },
   { name: DEMO2_PIPELINE_NAME, nodes: demo2PipelineNodes, edges: demo2PipelineEdges },
   { name: DEMO3_PIPELINE_NAME, nodes: demo3PipelineNodes, edges: demo3PipelineEdges },
+  { name: DEMO4_PIPELINE_NAME, nodes: demo4PipelineNodes, edges: demo4PipelineEdges },
 ];

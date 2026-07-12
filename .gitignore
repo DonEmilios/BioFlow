@@ -12,6 +12,7 @@ dist
 dist-ssr
 *.local
 .claude/settings.local.json
+.env
 
 # Compute server runtime data (uploads, generated custom-node scripts)
 server/data/

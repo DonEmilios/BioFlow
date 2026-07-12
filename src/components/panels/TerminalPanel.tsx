@@ -1,11 +1,13 @@
 import { usePipelineStore } from "@/store/pipelineStore";
-import { Terminal, Trash2 } from "lucide-react";
+import { useUIStore } from "@/store/uiStore";
+import { Terminal, Trash2, ChevronDown } from "lucide-react";
 import { useEffect, useRef } from "react";
 import { Button } from "@/components/ui/button";
 
 export default function TerminalPanel() {
   const logs = usePipelineStore((s) => s.logs);
   const clearLogs = usePipelineStore((s) => s.clearLogs);
+  const setTerminalOpen = useUIStore((s) => s.setTerminalOpen);
   const scrollRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -21,9 +23,14 @@ export default function TerminalPanel() {
           <Terminal size={14} className="text-[#a9b7c6]" />
           <span className="font-semibold text-[#a9b7c6]">Execution Terminal</span>
         </div>
-        <Button variant="ghost" size="icon" className="h-6 w-6 text-[#a9b7c6] hover:text-white hover:bg-white/10" onClick={clearLogs}>
-          <Trash2 size={12} />
-        </Button>
+        <div className="flex items-center gap-1">
+          <Button variant="ghost" size="icon" className="h-6 w-6 text-[#a9b7c6] hover:text-white hover:bg-white/10" onClick={clearLogs} title="Clear logs">
+            <Trash2 size={12} />
+          </Button>
+          <Button variant="ghost" size="icon" className="h-6 w-6 text-[#a9b7c6] hover:text-white hover:bg-white/10" onClick={() => setTerminalOpen(false)} title="Hide terminal">
+            <ChevronDown size={14} />
+          </Button>
+        </div>
       </div>
       <div ref={scrollRef} className="flex-1 overflow-y-auto p-4 space-y-1.5 scroll-smooth">
         {(!logs || logs.length === 0) ? (

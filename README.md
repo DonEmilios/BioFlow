@@ -2,6 +2,9 @@
 
 [![License: Apache 2.0](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE)
 
+<img width="1162" height="525" alt="image" src="https://github.com/user-attachments/assets/490c21f1-b15a-475c-aefc-d55c4b78b52f" />
+
+
 **A visual, no-code-first pipeline builder for bioinformatics — with a real code escape hatch when you need one.**
 
 BioFlow lets you assemble bioinformatics workflows — QC, alignment, differential expression, visualization — by dragging nodes onto a canvas and connecting them, the way you'd sketch the pipeline on a whiteboard. No script to write, no environment to configure by hand, no remembering CLI flags for a dozen different tools.

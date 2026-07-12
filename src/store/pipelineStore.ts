@@ -11,6 +11,7 @@ import {
   EdgeChange,
 } from "reactflow";
 import { savePipelineToDb, loadPipelineFromDb, runPipeline } from "@/lib/pipelineApi";
+import { autoLayout } from "@/lib/autoLayout";
 
 export interface PipelineLog {
   timestamp: string;
@@ -51,6 +52,7 @@ interface PipelineState {
   loadPipeline: () => Promise<void>;
   clearPipeline: () => void;
   loadDemo: (nodes: Node<PipelineNodeData>[], edges: Edge[], name: string) => void;
+  autoArrange: () => void;
   runPipeline: () => Promise<void>;
   clearResults: () => void;
   addLog: (msg: string) => void;
@@ -128,7 +130,16 @@ export const usePipelineStore = create<PipelineState>()(
     set({ nodes: [], edges: [], selectedNodeId: null, pipelineName: "Untitled Pipeline", pipelineDbId: null, runResults: null }),
 
   loadDemo: (nodes, edges, name) =>
-    set({ nodes, edges, selectedNodeId: null, pipelineName: name, pipelineDbId: null, runResults: null }),
+    set({
+      nodes: autoLayout(nodes, edges),
+      edges,
+      selectedNodeId: null,
+      pipelineName: name,
+      pipelineDbId: null,
+      runResults: null,
+    }),
+
+  autoArrange: () => set({ nodes: autoLayout(get().nodes, get().edges) }),
 
   runPipeline: async () => {
     const { nodes, edges, pipelineDbId } = get();

@@ -1,4 +1,4 @@
-import { Save, FolderOpen, Trash2, Play, PanelLeftClose, PanelLeft, FlaskConical, ChevronDown } from "lucide-react";
+import { Save, FolderOpen, Trash2, Play, PanelLeftClose, PanelLeft, FlaskConical, ChevronDown, LayoutGrid } from "lucide-react";
 import { usePipelineStore } from "@/store/pipelineStore";
 import { useUIStore } from "@/store/uiStore";
 import { Button } from "@/components/ui/button";
@@ -14,7 +14,7 @@ import { ALL_DEMOS } from "@/lib/demoPipeline";
 import CreateNodeDialog from "@/components/panels/CreateNodeDialog";
 
 export default function TopBar() {
-  const { pipelineName, setPipelineName, savePipeline, loadPipeline, clearPipeline, loadDemo, nodes, isRunning, runPipeline } =
+  const { pipelineName, setPipelineName, savePipeline, loadPipeline, clearPipeline, loadDemo, autoArrange, nodes, isRunning, runPipeline } =
     usePipelineStore();
   const { sidebarOpen, toggleSidebar } = useUIStore();
 
@@ -114,6 +114,20 @@ export default function TopBar() {
         </DropdownMenu>
 
         <CreateNodeDialog />
+
+        <Button
+          variant="ghost"
+          size="sm"
+          className="h-7 text-xs gap-1.5 text-muted-foreground"
+          disabled={nodes.length === 0}
+          onClick={() => {
+            autoArrange();
+            toast.info("Pipeline arranged");
+          }}
+        >
+          <LayoutGrid size={12} strokeWidth={1.5} />
+          Arrange
+        </Button>
 
         <Button
           variant="ghost"

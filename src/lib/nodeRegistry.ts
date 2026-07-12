@@ -28,13 +28,15 @@ export interface NodeRegistryEntry {
   params: ParamSchema[];
 }
 
+// Distinct, evenly-spaced hues so categories read at a glance on the canvas,
+// in the sidebar dots, and on the minimap.
 export const NODE_CATEGORIES: Record<NodeCategory, { label: string; color: string }> = {
-  input: { label: "Input", color: "hsl(var(--primary))" },
-  process: { label: "Process", color: "hsl(var(--foreground))" },
-  ai: { label: "AI", color: "hsl(var(--accent))" },
-  database: { label: "Database", color: "hsl(142, 71%, 45%)" },
-  viz: { label: "Visualization", color: "hsl(280, 67%, 55%)" },
-  output: { label: "Output", color: "hsl(25, 95%, 53%)" },
+  input: { label: "Input", color: "hsl(217, 91%, 60%)" },       // blue
+  process: { label: "Process", color: "hsl(243, 75%, 59%)" },   // indigo
+  ai: { label: "AI", color: "hsl(271, 81%, 60%)" },             // violet
+  database: { label: "Database", color: "hsl(160, 84%, 39%)" }, // emerald
+  viz: { label: "Visualization", color: "hsl(330, 81%, 56%)" }, // rose
+  output: { label: "Output", color: "hsl(32, 95%, 50%)" },      // amber
 };
 
 export const nodeRegistry: NodeRegistryEntry[] = [

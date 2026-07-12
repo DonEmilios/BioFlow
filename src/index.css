@@ -117,3 +117,21 @@
   background: white;
   border-bottom: 1px solid hsl(var(--border));
 }
+
+.react-flow__controls-button svg {
+  fill: hsl(var(--muted-foreground));
+}
+
+/* Keep React Flow's attribution (per its terms) but make it unobtrusive. */
+.react-flow__attribution {
+  background: transparent;
+  font-size: 9px;
+}
+.react-flow__attribution a {
+  color: hsl(var(--muted-foreground) / 0.5);
+}
+
+/* Slightly bolder, rounder edges so the pipeline flow reads clearly. */
+.react-flow__edge-path {
+  stroke-linecap: round;
+}

@@ -1,6 +1,19 @@
 import { readFileSync } from "node:fs";
 import { resolveUpload } from "../storage.js";
 import { differentialAbundance, pathwayOra, PathwaySet } from "../lib/metabolomics.js";
+import {
+  OmicsMatrix,
+  parseMatrixCsv,
+  transformScale,
+  Transform,
+  Scaling,
+  pca,
+  kmeans,
+  rocAuc,
+  renderVolcanoSvg,
+  renderPcaSvg,
+  renderRocSvg,
+} from "../lib/omics.js";
 import pathwayLibrary from "../data/pathways.json" with { type: "json" };
 
 export interface JsExecutorArgs {
@@ -23,6 +36,34 @@ function firstUpstreamUploadId(inputs: Record<string, any>): string | undefined 
     if (Array.isArray(files) && files.length > 0) return files[0];
   }
   return undefined;
+}
+
+// Resolves a samples×features matrix for a tabular node: prefer a matrix already
+// emitted upstream (so nodes chain — e.g. Normalize → PCA), else parse the CSV
+// from a connected File Input. This is what lets tabular nodes compose freely.
+function resolveMatrix(inputs: Record<string, any>): OmicsMatrix {
+  for (const key in inputs) {
+    const up = inputs[key];
+    if (up && Array.isArray(up.matrix) && Array.isArray(up.features) && Array.isArray(up.samples)) {
+      return { samples: up.samples, features: up.features, matrix: up.matrix, groups: up.groups ?? null };
+    }
+  }
+  const uploadId = firstUpstreamUploadId(inputs);
+  if (!uploadId)
+    throw new Error("Connect a File Input node (metabolomics/omics CSV) or a matrix-producing node upstream.");
+  const rec = resolveUpload(uploadId);
+  if (!rec) throw new Error("Uploaded file not found. Re-upload and run again.");
+  return parseMatrixCsv(readFileSync(rec.path, "utf8"));
+}
+
+// Row-oriented view of a matrix for the results table (first 200 rows).
+function matrixToRows(m: OmicsMatrix): Record<string, any>[] {
+  return m.matrix.slice(0, 200).map((row, i) => {
+    const obj: Record<string, any> = { sample: m.samples[i] };
+    if (m.groups) obj.group = m.groups[i];
+    m.features.forEach((f, j) => (obj[f] = Number(row[j].toFixed(4))));
+    return obj;
+  });
 }
 
 export const javascriptExecutors: Record<string, JsExecutor> = {
@@ -141,6 +182,136 @@ export const javascriptExecutors: Record<string, JsExecutor> = {
     return {
       pathway_library: (pathwayLibrary as { source: string }).source,
       ...pathwayOra(significant, sets, { minHits: Number(params.min_hits ?? 2) }),
+    };
+  },
+
+  // ─── Real tabular-omics analysis (batch 1) ───
+
+  // Preprocessing: log2 transform and/or scaling (autoscale / Pareto). Emits a
+  // matrix so downstream nodes (PCA, clustering) consume the normalized data.
+  normalize_scale: async ({ params, inputs }) => {
+    const m = resolveMatrix(inputs);
+    const transform = (params.transform ?? "none") as Transform;
+    const scaling = (params.scaling ?? "none") as Scaling;
+    const scaled = transformScale(m.matrix, transform, scaling);
+    const out: OmicsMatrix = { samples: m.samples, features: m.features, matrix: scaled, groups: m.groups };
+    return {
+      summary: `Normalized ${m.samples.length} samples × ${m.features.length} features (transform: ${transform}, scaling: ${scaling}).`,
+      transform,
+      scaling,
+      samples: out.samples,
+      features: out.features,
+      groups: out.groups,
+      matrix: out.matrix,
+      data: matrixToRows(out),
+    };
+  },
+
+  // Principal component analysis: real eigendecomposition of the feature
+  // covariance. Emits a rendered scatter (coloured by group) + per-sample
+  // PC coordinates.
+  pca_analysis: async ({ params, inputs }) => {
+    const m = resolveMatrix(inputs);
+    const nComponents = Math.max(2, Number(params.n_components ?? 2));
+    const result = pca(m.matrix, nComponents);
+    const rows = m.samples.map((s, i) => {
+      const obj: Record<string, any> = { sample: s };
+      if (m.groups) obj.group = m.groups[i];
+      result.scores[i].forEach((v, c) => (obj[`PC${c + 1}`] = Number(v.toFixed(4))));
+      return obj;
+    });
+    const pctPC1 = (result.explainedVariance[0] * 100).toFixed(1);
+    const pctPC2 = ((result.explainedVariance[1] ?? 0) * 100).toFixed(1);
+    return {
+      summary: `PCA complete. PC1 explains ${pctPC1}% of variance, PC2 ${pctPC2}%.`,
+      explained_variance: result.explainedVariance.map((v) => Number((v * 100).toFixed(2))),
+      n_components: result.nComponents,
+      image_url: renderPcaSvg(result.scores, m.groups, result.explainedVariance),
+      data: rows,
+    };
+  },
+
+  // k-means clustering on samples; reports silhouette (cluster quality) and,
+  // when known group labels exist, cluster/group agreement (purity).
+  kmeans_cluster: async ({ params, inputs }) => {
+    const m = resolveMatrix(inputs);
+    const k = Math.max(2, Number(params.k ?? 2));
+    const result = kmeans(m.matrix, k);
+    let purity: number | undefined;
+    if (m.groups) {
+      // Purity: fraction of samples in the majority group of their cluster.
+      let correct = 0;
+      for (let c = 0; c < k; c++) {
+        const memberGroups = m.groups.filter((_, i) => result.assignments[i] === c);
+        if (memberGroups.length === 0) continue;
+        const counts: Record<string, number> = {};
+        memberGroups.forEach((g) => (counts[g] = (counts[g] ?? 0) + 1));
+        correct += Math.max(...Object.values(counts));
+      }
+      purity = correct / m.samples.length;
+    }
+    return {
+      summary: `k-means (k=${k}): silhouette ${result.silhouette.toFixed(3)}${
+        purity !== undefined ? `, cluster/group purity ${(purity * 100).toFixed(0)}%` : ""
+      }.`,
+      k,
+      silhouette: Number(result.silhouette.toFixed(4)),
+      inertia: Number(result.inertia.toFixed(2)),
+      purity: purity !== undefined ? Number(purity.toFixed(4)) : undefined,
+      data: m.samples.map((s, i) => ({
+        sample: s,
+        cluster: result.assignments[i],
+        ...(m.groups ? { group: m.groups[i] } : {}),
+      })),
+    };
+  },
+
+  // ROC / AUC for a single biomarker feature separating two groups. Real
+  // rank-based AUC + a rendered ROC curve.
+  roc_analysis: async ({ params, inputs }) => {
+    const m = resolveMatrix(inputs);
+    if (!m.groups) throw new Error("ROC needs a group column in the data to define positive vs negative class.");
+    const feature = (params.feature as string) || m.features[0];
+    const featureIdx = m.features.indexOf(feature);
+    if (featureIdx === -1) throw new Error(`Feature "${feature}" not found. Available: ${m.features.slice(0, 8).join(", ")}…`);
+
+    const uniqueGroups = Array.from(new Set(m.groups));
+    const HEALTHY = ["control", "healthy", "normal", "wt", "baseline"];
+    const positive =
+      (params.positive_group as string) && uniqueGroups.includes(params.positive_group)
+        ? (params.positive_group as string)
+        : uniqueGroups.find((g) => !HEALTHY.includes(g.toLowerCase())) ?? uniqueGroups[1] ?? uniqueGroups[0];
+
+    const values = m.matrix.map((row) => row[featureIdx]);
+    const labels = m.groups.map((g) => (g === positive ? 1 : 0));
+    const roc = rocAuc(values, labels);
+    return {
+      summary: `${feature} as a biomarker for ${positive}: AUC = ${roc.auc.toFixed(3)} (${roc.direction} in cases).`,
+      feature,
+      positive_group: positive,
+      auc: Number(roc.auc.toFixed(4)),
+      direction: roc.direction,
+      image_url: renderRocSvg(roc.points, roc.auc, feature),
+    };
+  },
+
+  // Real volcano plot rendered server-side from an upstream stats table
+  // (log2fc vs -log10 adjusted p). Replaces the old placeholder image.
+  volcano_plot: async ({ params, inputs }) => {
+    const rows = firstUpstreamArray(inputs) as Array<{ log2fc?: number; padj?: number; pvalue?: number }>;
+    const pts = rows
+      .filter((r) => typeof r.log2fc === "number" && (typeof r.padj === "number" || typeof r.pvalue === "number"))
+      .map((r) => ({ ...r, padj: (r.padj ?? r.pvalue)! })) as Array<{ log2fc: number; padj: number }>;
+    if (pts.length === 0)
+      throw new Error("Connect a stats node upstream (needs log2fc + adjusted p per feature).");
+    const lfcLine = Number(params.lfc_line ?? 1);
+    const padjLine = Number(params.padj_line ?? 0.05);
+    const sig = pts.filter((p) => Math.abs(p.log2fc) >= lfcLine && p.padj <= padjLine).length;
+    return {
+      summary: `Volcano plot rendered: ${sig} of ${pts.length} features significant (|log2FC| ≥ ${lfcLine}, p ≤ ${padjLine}).`,
+      significant_points: sig,
+      total_points: pts.length,
+      image_url: renderVolcanoSvg(pts, lfcLine, padjLine),
     };
   },
 

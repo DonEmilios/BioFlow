@@ -1,8 +1,9 @@
-import { randomBytes } from "node:crypto";
+import { randomBytes, createHash } from "node:crypto";
 import { mkdirSync, writeFileSync, existsSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { NodeManifest, NodeCategory, validateManifest } from "./manifest.js";
+import { db } from "./db.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const CUSTOM_NODE_DIR = path.join(__dirname, "..", "data", "custom-nodes");
@@ -94,16 +95,29 @@ export function createCustomNode(input: CreateCustomNodeInput): NodeManifest {
   const errors = validateManifest(manifest);
   if (errors.length) throw new Error(`Invalid node: ${errors.join(", ")}`);
 
-  customManifests.set(id, manifest);
+  const codeSha256 = createHash("sha256").update(code, "utf8").digest("hex");
+  insertStmt.run({
+    id,
+    manifest: JSON.stringify(manifest),
+    code_sha256: codeSha256,
+    created_at: new Date().toISOString(),
+  });
   return manifest;
 }
 
-const customManifests = new Map<string, NodeManifest>();
+const insertStmt = db.prepare(
+  `INSERT INTO custom_nodes (id, manifest, code_sha256, created_at)
+   VALUES (@id, @manifest, @code_sha256, @created_at)`
+);
+const selectOneStmt = db.prepare(`SELECT manifest FROM custom_nodes WHERE id = ?`);
+const selectAllStmt = db.prepare(`SELECT manifest FROM custom_nodes ORDER BY created_at`);
 
 export function getCustomManifest(id: string): NodeManifest | undefined {
-  return customManifests.get(id);
+  const row = selectOneStmt.get(id) as { manifest: string } | undefined;
+  return row ? (JSON.parse(row.manifest) as NodeManifest) : undefined;
 }
 
 export function listCustomManifests(): NodeManifest[] {
-  return Array.from(customManifests.values());
+  const rows = selectAllStmt.all() as { manifest: string }[];
+  return rows.map((r) => JSON.parse(r.manifest) as NodeManifest);
 }
